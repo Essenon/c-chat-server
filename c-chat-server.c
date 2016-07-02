@@ -1,45 +1,45 @@
 /*
-	����:   �����ҷ������˳��� v1.0 ,TCP Э�� with socket2.2
-	����:   ZhangYiDa,ʹ�� Windows �׽����¼�ģ�ʹ���
-	��ҳ:	http://www.aliensis.com / http://www.loogi.cn 
-	���룺  Visual Studio with CL 14.0
-	ƽ̨:   x86/x64 windows, 32 λ����
-	ע�⣺----------------------------------------------------
-		1: ֻ���Ա����32λ����!������ΪCL.EXE
-			VC6/VS����.����������δ����.
-		2: ���������ֻ֧��WSA_MAXIMUM_WAIT_EVENTS���ͻ�������
-			���ֵ��60����,Ҳ����˵���ֻ֧��60���ͻ��ˡ�
-		3: ֻ֧����������,����δʹ�ö��̷߳��ͺͽ���,
-			�Լ������ڻ����Ͽ������Դ�ͼƬ��
+	名称:   聊天室服务器端程序 v1.0 ,TCP 协议 with socket2.2
+	作者:   ZhangYiDa,使用 Windows 套接字事件模型创作
+	主页:	http://www.aliensis.com / http://www.loogi.cn 
+	编译：  Visual Studio with CL 14.0
+	平台:   x86/x64 windows, 32 位编译
+	注意：----------------------------------------------------
+		1: 只可以编译成32位程序!编译器为CL.EXE
+			VC6/VS均可.其它编译器未测试.
+		2: 服务器最多只支持WSA_MAXIMUM_WAIT_EVENTS个客户端连接
+			这个值在60左右,也就是说最多只支持60个客户端。
+		3: 只支持文字聊天,所以未使用多线程发送和接收,
+			自己可以在基础上开发可以带图片的
 	-----------------------------------------------------
 */
 /*
-	������֧�� �û��ǳ�
-	������֧�� Զ�̹ر� 
-	��������������δ����,�Ͼ���ֻ�Ǹ�ģ��
-	�������շ����ݵĸ�ʽ
-	<����>----------------------------------------------------
-	��������:
-		���������н��յ������ݶ��ᱻ��������͵�������������������ӵĿͻ���
-		���ǵ��û����� USER ZhangYiDa(Ҳ������Ϣ���Դ�дUSER��ͷ��)
-		�����Ϣ�൱��һ��ָ��,���������յ����ѷ��������Ϣ�Ŀͻ����ǳ�����Ϊ
-		ZhangYiDa(�����������û��ǳ�,���޴���),������Ϣ���ᱻ����
-		������������յ�SHUTָ��,��ô���������Ƚ�SHUT ָ����AUTHKEY�������ȷ,
-		���������������رա�
-		���������Ԥ��AuthKey = "TESTAUTHKEY16BYT"(����Ϊ16���ֽ�)��ô�ͻ��˷���
-		'SHUT TESTAUTHKEY16BYT'ʱ������������ر� ,���AuthKey����,�ͻ��˽����յ�
-	   ��AUTHKEY INCORRECT'��Ϣ 
-	��������:
-		��������ͻ��˷��͵����ݸ�ʽΪ,ǰ�����ֽڹ̶�Ϊʱ���֣��루�֣�
-		������û��ǳ�,��ƫ��0x6��ʼΪ�û������ֽ������ǳƳ��ȣ�
-		���û���ǳ�,��ô��ƫ��0x6��ʼ�����������ֽ�Ϊ0
-		���������û����͵���Ϣ,������0��β
-		�����ǳ�ΪZhang���û���ʱ��16��32��12������һ����Ϣhello!
-		��ô���������͵�����Ϊ(������16���Ʊ�ʾ)
+	服务器支持 用户昵称
+	服务器支持 远程关闭 
+	服务器数据连接未加密,毕竟这只是个模拟
+	服务器收发数据的格式
+	<描述>----------------------------------------------------
+	接收数据:
+		理论上所有接收到的数据都会被打包并发送到所有与服务器建立连接的客户端
+		但是当用户发送 USER ZhangYiDa(也就是消息是以大写USER开头的)
+		这个消息相当于一条指令,服务器接收到后会把发送这个消息的客户端昵称设置为
+		ZhangYiDa(这用于设置用户昵称,不限次数),这条消息不会被发送
+		如果服务器接收到SHUT指令,那么服务器将比较SHUT 指令后的AUTHKEY，如果正确,
+		服务器将无条件关闭。
+		例如服务器预设AuthKey = "TESTAUTHKEY16BYT"(必须为16个字节)那么客户端发送
+		'SHUT TESTAUTHKEY16BYT'时，服务器将会关闭 ,如果AuthKey错误,客户端将会收到
+	   ‘AUTHKEY INCORRECT'消息 
+	发送数据:
+		服务器向客户端发送的数据格式为,前六个字节固定为时：分：秒（字）
+		如果有用户昵称,从偏移0x6开始为用户名（字节数视昵称长度）
+		如果没有昵称,那么从偏移0x6开始的连续两个字节为0
+		接下来是用户发送的消息,以两个0结尾
+		例如昵称为Zhang的用户在时间16：32：12发送了一条消息hello!
+		那么服务器发送的数据为(部分用16进制表示)
 		0x0010 0x0020 0x000c + "Zhang" + 0x0000 + "hello!" + 0x0000
-		����Լ21���ֽ�
+		共计约21个字节
 */
-//winsock2.h��Ҫ��window.h��ǰ����
+//winsock2.h需要比window.h提前定义
 #include <stdio.h>
 #include <winsock2.h>
 #include <windows.h>
@@ -47,70 +47,70 @@
 #pragma comment(lib,"ws2_32.lib")
 
 #define IS_DEBUG 1
-//----�����б�---- 
+//----函数列表---- 
 //WSAEVENT _EventSelect(SOCKET sock, long event);
-//��ʼ������ 
+//初始化函数 
 //EVESTACK* _InitQueneStruct();
-//�Զ�����ڴ���亯�� 
+//自定义的内存分配函数 
 //LPVOID _Malloc(unsigned size);
-//��Ҫ����������� 
+//主要的聊天服务函数 
 //int ServerMan(char*host, unsigned port);
-//���̺��� 
+//进程函数 
 //int ThreadStart(struct TPARAM* param); 
 
 #define _BACKLOG	  (0x9)      
-#define	_MAX_NAME	  (0x30)    //�����Ϊ50���ֽ�
+#define	_MAX_NAME	  (0x30)    //名字最长为50个字节
 #define _MAX_SOCKETS  (WSA_MAXIMUM_WAIT_EVENTS)
 #define _MAX_EVENTS   (WSA_MAXIMUM_WAIT_EVENTS)
 #define	_MAX_USERS	  (WSA_MAXIMUM_WAIT_EVENTS)
-#define _MAX_RECV     (0x400)   //������1024�ֽ�
+#define _MAX_RECV     (0x400)   //最多接收1024字节
 #define _AUTHKEY_LEN (0x10)
 #define _ZERO 		  (0x0)
 
 typedef struct
 {
-	char user[_MAX_NAME];  //�û���
-	unsigned host;         //�û�IP
-	unsigned port;         //�û��˿�
+	char user[_MAX_NAME];  //用户名
+	unsigned host;         //用户IP
+	unsigned port;         //用户端口
 }USERINFO;
 
 struct EVESTACK
 {
-	SOCKET    socStack[_MAX_SOCKETS]; //�׽��ֶ���
-	WSAEVENT  eveStack[_MAX_EVENTS]; //�¼�����
-	USERINFO* usrStack[_MAX_USERS];   //�û�����
-	unsigned  cEvents;                 //��������ͳ��
+	SOCKET    socStack[_MAX_SOCKETS]; //套接字队列
+	WSAEVENT  eveStack[_MAX_EVENTS]; //事件队列
+	USERINFO* usrStack[_MAX_USERS];   //用户队列
+	unsigned  cEvents;                 //队列人数统计
 };
 
 struct RECVDATA
 {
-	char data[_MAX_RECV]; //���͵���Ϣ
-	char user[_MAX_NAME]; //�������ǳ�
-	unsigned brcv;        //���յ����ݴ�С���ֽڼƣ�
+	char data[_MAX_RECV]; //发送的消息
+	char user[_MAX_NAME]; //发送者昵称
+	unsigned brcv;        //接收的数据大小（字节计）
 };
 
 struct TPARAM
-{   //���̲����ṹ 
+{   //进程参数结构 
 	unsigned port;
 	char*    host;
 	unsigned flag;
-	//16�ֽ�SHUTָ��AuthKEY 
+	//16字节SHUT指令AuthKEY 
 	char AuthKey[_AUTHKEY_LEN];
 };
 
 
 
 WSAEVENT _EventSelect(SOCKET sock, long event)
-{	//����sock,���������¼���socket,event�������õ��¼� 
+{	//参数sock,是需设置事件的socket,event是需设置的事件 
 	WSAEVENT ev;
-	//����һ���¼�ģ��
+	//创建一个事件模型
 	if ((ev = WSACreateEvent()) != WSA_INVALID_EVENT)
-	{	//Ϊ�¼�ģ��������Ҫ��ص��¼�
+	{	//为事件模型添加需要监控的事件
 		if (WSAEventSelect(sock, ev, event) != SOCKET_ERROR)
-		{	//�ɹ����� �¼�ID
+		{	//成功返回 事件ID
 			return ev;
 		}
-	} //ʧ�ܷ���NULL
+	} //失败返回NULL
 	return NULL;
 }
 LPVOID _Malloc(unsigned size)
@@ -131,13 +131,13 @@ LPVOID _InitQueneStruct()
 {
 	struct EVESTACK *sta;
 	unsigned  Index, lcptr;
-	//�������ṹ�ڴ�
+	//分配主结构内存
 	sta = (EVESTACK*)_Malloc(sizeof(EVESTACK));
 	if (sta != NULL)
-	{	//�����ں��ṹ�ڴ�
+	{	//分配内含结构内存
 		lcptr = (unsigned)_Malloc(sizeof(USERINFO)*_MAX_USERS);
 		if (lcptr != NULL)
-		{	//�и������ڴ��,ʡ�÷���_MAX_USERS���ڴ��
+		{	//切割分配的内存块,省得分配_MAX_USERS个内存块
 			Index = 0;
 			while (Index != _MAX_USERS)
 			{
@@ -152,7 +152,7 @@ LPVOID _InitQueneStruct()
 }
 
 int ServerMan(struct TPARAM*param)
-{	//host ָ�������IP�ĵ�ַ,portΪ�˿�
+{	//host 指向服务器IP的地址,port为端口
 	struct EVESTACK *sta;
 	struct RECVDATA  rcv;
 	WSADATA          wsa;
@@ -160,45 +160,45 @@ int ServerMan(struct TPARAM*param)
 	SOCKET 		    sock;
 	WORD	    wVersion;
 	register unsigned Index;
-	//�׽��ְ汾2
+	//套接字版本2
 	wVersion = 0x0202;
 	WSAStartup(wVersion, &wsa);
 	#if IS_DEBUG
-	printf("\n>>ִ��WSAStartup() LastError = %d",GetLastError());
+	printf("\n>>执行WSAStartup() LastError = %d",GetLastError());
 	#endif
-	//���socket�ṹ
+	//填充socket结构
 	sin.sin_family = AF_INET;
 	sin.sin_port   = htons(param->port);
 	sin.sin_addr.S_un.S_addr = inet_addr(param->host);
-	//�����׽���
+	//分配套接字
 	sock = socket(AF_INET, SOCK_STREAM, 0x0);
 	#if IS_DEBUG
-	printf("\n>>ִ��socket() LastError = %d",GetLastError());
+	printf("\n>>执行socket() LastError = %d",GetLastError());
 	#endif
 	if (sock != INVALID_SOCKET)
-	{	//�󶨵�ַ�Ͷ˿�
+	{	//绑定地址和端口
 		if (bind(sock, (sockaddr*)&sin, sizeof(sockaddr_in)) != SOCKET_ERROR)
-		{	//��ʼ�����˿�
+		{	//开始监听端口
 			#if IS_DEBUG
-			printf("\n>>ִ��bind() LastError = %d",GetLastError());
+			printf("\n>>执行bind() LastError = %d",GetLastError());
 			#endif
 			listen(sock, _BACKLOG);
 			/*
-				���䲢��ʼ��sta�ṹ��sta->eveStack[0]
-				sta->usrStack[0] ʼ��Ϊ�� 
+				分配并初始化sta结构，sta->eveStack[0]
+				sta->usrStack[0] 始终为空 
 			*/
 			sta = (struct EVESTACK*)_InitQueneStruct();
-			//��������Ҫ��ע���ǿͻ�������FD_ACCEPT
-			//�����ǽ������׽������ӵ�����
+			//服务器主要关注的是客户端连接FD_ACCEPT
+			//下面是将服务套接字添加到队列
 			Index = sta->cEvents++; 
 			sta->eveStack[Index] = _EventSelect(sock, FD_ACCEPT | FD_CLOSE);
 			sta->socStack[Index] = sock;
-			//����������ѭ��
+			//下面进入服务循环
 			while ( true )
 			{
-				//�¼�ID��event id�� 
+				//事件ID（event id） 
 				unsigned evid;
-				//�ṹsockaddr��size(sinlen for accept)
+				//结构sockaddr的size(sinlen for accept)
 				int sinlen = sizeof(sockaddr_in);
 				WSANETWORKEVENTS wsne;
 				evid = WSAWaitForMultipleEvents(sta->cEvents, \
@@ -207,21 +207,21 @@ int ServerMan(struct TPARAM*param)
 				{
 					WSAEnumNetworkEvents(sta->socStack[evid], sta->eveStack[evid], &wsne);
 					if (wsne.lNetworkEvents == FD_ACCEPT)
-					{	//��Ϊ�¼�ģ���������������,�����������������ô����Ľ����ᱻ���� 
+					{	//因为事件模型是有最大容量的,所以如果队列满了那么后面的将不会被接受 
 						if (sta->cEvents != WSA_MAXIMUM_WAIT_EVENTS)
 						{
 							sock = accept(sta->socStack[evid], (sockaddr*)&sin, (int*)&sinlen);
 							if (sock != INVALID_SOCKET)
 							{
-								//û�жԷ���ֵ��飬һ��Ҳ���������
-								//��Ҫ����������ô��ָ��,��ȷ�ֲ���������ʡ�ö���
+								//没有对返回值检查，一般也不会出问题
+								//不要怪我用了这么多指针,的确局部变量可以省好多事
 								Index = sta->cEvents++; 
 								sta->socStack[Index] = sock;
 								sta->eveStack[Index] = _EventSelect(sock, FD_READ | FD_WRITE | FD_CLOSE);
 								sta->usrStack[Index]->port = sin.sin_port;
 								sta->usrStack[Index]->host = sin.sin_addr.S_un.S_addr;
 								#if IS_DEBUG
-								printf("\n�ͻ���IP = %X �˿� = %X ������.��ǰ�ͻ�������=%d.", \
+								printf("\n客户端IP = %X 端口 = %X 已连接.当前客户端数量=%d.", \
 														sin.sin_addr.S_un.S_addr, \
 														sin.sin_port,\
 														sta->cEvents-0x1);
@@ -230,31 +230,31 @@ int ServerMan(struct TPARAM*param)
 							}
 						}
 					}
-					//�û�������Ϣ
+					//用户发送消息
 					else if (wsne.lNetworkEvents == FD_READ)
 					{
 						rcv.brcv = recv(sta->socStack[evid], rcv.data, _MAX_RECV - 0x1, 0x0);
-						//����û����͵������Ƿ�Ϊ USER XXX��ʽ
+						//检测用户发送的数据是否为 USER XXX格式
 						if (*(unsigned*)rcv.data == 0x52455355)
-						{	//������USER������û�����Ϊָ�������֣���USER ZhangYiDa����Ѹ��׽������û���Ӧ������
+						{	//将发送USER命令的用户命名为指令后的名字（如USER ZhangYiDa将会把该套接字与用户对应起来）
 							memcpy(sta->usrStack[evid]->user, rcv.data + 0x5, rcv.brcv - 0x5);
 							#if IS_DEBUG
-							printf("\n�ͻ���IP = %X �˿� = %X ����Ϊ %s.",\
+							printf("\n客户端IP = %X 端口 = %X 改名为 %s.",\
 											sta->usrStack[evid]->host,\
 											sta->usrStack[evid]->port,\
 											sta->usrStack[evid]->user); 
 							#endif 
 						}
 						else if(*(unsigned*)rcv.data == 0x54554853)
-						{	//����һ���򵥵�Զ�̹ر�ָ��,������������յ�SHUTָ�� 
-							//��ô,���򽫼��SHUTָ��Ĳ���AuthKey,���AuthKey��ȷ,��ô���������ر� 
+						{	//这是一个简单的远程关闭指令,如果服务器接收到SHUT指令 
+							//那么,程序将检查SHUT指令的参数AuthKey,如果AuthKey正确,那么服务器将关闭 
 							if(!memcmp(rcv.data + 0x5,param->AuthKey,_AUTHKEY_LEN))
 							{
 								#if IS_DEBUG
-								printf("\n�յ�SHUTָ��,AUTHKEY=%s ,����������˳�.",param->AuthKey);
+								printf("\n收到SHUT指令,AUTHKEY=%s ,服务进程已退出.",param->AuthKey);
 								#endif
 								for(Index = 0;Index!=sta->cEvents;Index++)
-								{	//�ڹر�ǰ��ͻ��˷���close��Ϣ 
+								{	//在关闭前向客户端发送close消息 
 									char * cloMsg = "SERVER CLOSED";
 									#define  CLOS_MSG_LEN  0xd
 									send(sta->socStack[Index], cloMsg, CLOS_MSG_LEN, 0x0);
@@ -264,7 +264,7 @@ int ServerMan(struct TPARAM*param)
 								_Free(sta,sta->usrStack[0x0]);
 								return WSACleanup();
 							}
-							//���Ѹÿͻ���AUTHKEY����ȷ 
+							//提醒该客户端AUTHKEY不正确 
 							#define  AUTH_MSG_LEN  0x11
 							char * incAuthKey = "AUTHKEY INCORRECT";
 							send(sta->socStack[evid],incAuthKey,AUTH_MSG_LEN,0x0);
@@ -272,32 +272,32 @@ int ServerMan(struct TPARAM*param)
 						else 
 						{
 							/*
-							���������Ҫ����װ��Ϣ,�����͵�������������������ӵĿͻ���
-							####    �����и����©��   ####
+							这个部分主要是组装消息,并发送到所有与服务器建立连接的客户端
+							####    这里有个溢出漏洞   ####
 							*/
-							char buffer[_MAX_RECV];   //���ͻ�����
-							char *base = buffer;    //�����Ҫ���������ֽ���
+							char buffer[_MAX_RECV];   //发送缓冲区
+							char *base = buffer;    //这个主要是来计算字节数
 							unsigned bsend, Index, unameLen;
-							SYSTEMTIME time;          //ʱ��ṹ,��Ҫʹ�� ʱ,��,��
+							SYSTEMTIME time;          //时间结构,主要使用 时,分,秒
 							
 							GetSystemTime(&time);
-							//���ʱ����6���ֽڣ��ֱ�Ϊ ʱ �� �� ���� 
+							//填充时间域（6个字节）分别为 时 分 秒 毫秒 
 							((short*)base) [0x0]  =  time.wHour;
 							((short*)base) [0x1]  =  time.wMinute;
 							((short*)base) [0x2]  =  time.wSecond;
 							((short*)base) [0x3]  =  time.wMilliseconds;
-							//����û������ֽ�����һ��,������0��β��
+							//填充用户名域（字节数不一定,以两个0结尾）
 							unameLen = strlen(sta->usrStack[evid]->user);
 							base = (char*)memcpy(base + 0x8, sta->usrStack[evid]->user, unameLen);
 							base = (char*)((unsigned)base + unameLen);
 							((short*)base) [0x0]  =  _ZERO; 
-							//�����Ϣ���ֽ�����һ��,������0��β��
+							//填充信息域（字节数不一定,以两个0结尾）
 							base = (char*)memcpy(base + 0x2, rcv.data, rcv.brcv);
 							base = (char*)((unsigned)base + rcv.brcv);
 							((short*)base) [0x0]  =  _ZERO;
-							//������Ҫ���͵��ֽ���,����+0x2����Ϊ�������������ֽ�ҲҪ���ȥ
+							//计算需要发送的字节数,后面+0x2是因为上面这句的两个字节也要算进去
 							bsend = (unsigned)base - (unsigned)buffer + 0x2;
-							//ѭ����ÿ���ͻ��˷�����Ϣ
+							//循环向每个客户端发送消息
 							Index = sta->cEvents;
 							while (Index >= 0x1)
 							{
@@ -305,18 +305,18 @@ int ServerMan(struct TPARAM*param)
 							}
 						}
 					}
-					//�û��˳���¼
+					//用户退出登录
 					else if (wsne.lNetworkEvents == FD_CLOSE)
 					{
-						//�ر��¼�
+						//关闭事件
 						#if IS_DEBUG
-						printf("\n�û�%s�˳� �׽��� = %X ", \
+						printf("\n用户%s退出 套接字 = %X ", \
 										sta->usrStack[evid]->user,\
 										sta->socStack[evid]);
 						#endif
 						WSACloseEvent(sta->eveStack[evid]);
-						//���ö�Ӧevid���¼�,�׽���,�û�����
-						//evid != sta->cEvents���ܻ����Խ�����
+						//将该对应evid的事件,套接字,用户覆盖
+						//evid != sta->cEvents可能会出现越界访问
 						while (evid++ > sta->cEvents)
 						{
 							sta->eveStack[evid-0x1] = sta->eveStack[evid];
@@ -326,7 +326,7 @@ int ServerMan(struct TPARAM*param)
 						sta->cEvents--;
 					}
 					else if (wsne.lNetworkEvents == FD_WRITE)
-					{	//���û�����,���û�����һ����Ϣ��ʾ���ӳɹ�
+					{	//当用户连接,向用户发送一条消息提示连接成功
 						char* accMsg = "CONNECTED";
 						#define  CNNT_MSG_LEN  0x9
 						send(sta->socStack[evid], accMsg, CNNT_MSG_LEN, 0x0);
@@ -340,7 +340,7 @@ int ServerMan(struct TPARAM*param)
 
 
 HANDLE StartThread(struct TPARAM*param)
-{   //������ʼ���� 
+{   //进程起始函数 
 	static HANDLE hProcess;
 	if (!param->flag)
 	{	
@@ -355,7 +355,7 @@ HANDLE StartThread(struct TPARAM*param)
 
 int main(void)
 {
-	char *ipaddr = "117.84.87.96";
+	char *ipaddr = "172.0.0.1";
 	char *AuthKey = "TESTAUTHKEY16BYT";
 	unsigned port = 9988;
 	
@@ -367,7 +367,7 @@ int main(void)
 	memcpy(param.AuthKey,AuthKey,_AUTHKEY_LEN);
 	
 	hProcess = StartThread(&param);
-	printf("�����������Ѿ����� ID = %d", (unsigned)hProcess);
+	printf("服务主进程已经创建 ID = %d", (unsigned)hProcess);
 	getchar();
 	return 0;
 }
